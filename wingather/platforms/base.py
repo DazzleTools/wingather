@@ -94,6 +94,14 @@ class PlatformBase(ABC):
         """Bring window to the foreground / top of Z-order."""
         pass
 
+    def hide_window(self, window_info):
+        """Hide a visible window (reverse of show_window).
+
+        Returns True on success, False if not supported or failed.
+        Default implementation returns False (not supported).
+        """
+        return False
+
     def move_from_virtual_desktop(self, window_info):
         """Move a window from another virtual desktop to the current one.
 

@@ -1,10 +1,12 @@
 """Core orchestration logic for wingather (platform-agnostic)."""
 
+import datetime
 import fnmatch
 import json
 import logging
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 from wingather.platforms import get_platform
@@ -151,6 +153,9 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
     low_concern = [w for w in windows if w.concern_level and w.concern_level > TOPMOST_THRESHOLD]
     normal = [w for w in windows if not w.suspicious]
 
+    # Track windows that were hidden and get shown (for --undo support)
+    shown_windows = []
+
     # Process normal first, then low concern, then high concern last
     # (last processed = on top of z-order)
     for wi in normal:
@@ -158,24 +163,37 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
             _simulate_window(wi, area_x, area_y, area_w, area_h,
                              show_hidden, include_virtual)
         else:
+            was_hidden = wi.state == 'hidden'
             _process_window(platform, wi, area_x, area_y, area_w, area_h,
                             show_hidden, include_virtual, topmost=False)
+            if was_hidden and show_hidden and wi.action_taken and 'shown' in wi.action_taken:
+                shown_windows.append(wi)
 
     for wi in low_concern:
         if dry_run:
             _simulate_window(wi, area_x, area_y, area_w, area_h,
                              show_hidden, include_virtual)
         else:
+            was_hidden = wi.state == 'hidden'
             _process_window(platform, wi, area_x, area_y, area_w, area_h,
                             show_hidden, include_virtual, topmost=False)
+            if was_hidden and show_hidden and wi.action_taken and 'shown' in wi.action_taken:
+                shown_windows.append(wi)
 
     for wi in high_concern:
         if dry_run:
             _simulate_window(wi, area_x, area_y, area_w, area_h,
                              show_hidden, include_virtual)
         else:
+            was_hidden = wi.state == 'hidden'
             _process_window(platform, wi, area_x, area_y, area_w, area_h,
                             show_hidden, include_virtual, topmost=True)
+            if was_hidden and show_hidden and wi.action_taken and 'shown' in wi.action_taken:
+                shown_windows.append(wi)
+
+    # Save state for --undo if we showed any hidden windows
+    if shown_windows and not dry_run:
+        save_shown_state(shown_windows)
 
     # Return sorted: highest concern first, then low concern, then normal
     return high_concern + low_concern + normal
@@ -555,3 +573,140 @@ def _process_window(platform, wi, area_x, area_y, area_w, area_h,
         action_parts.append('center-failed')
 
     wi.action_taken = '+'.join(action_parts) if action_parts else 'unchanged'
+
+
+# ---------------------------------------------------------------------------
+# State file for --undo support
+# ---------------------------------------------------------------------------
+
+def _get_state_dir():
+    """Return the directory for wingather state files."""
+    if sys.platform == 'win32':
+        base = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
+        return Path(base) / 'wingather'
+    return Path.home() / '.local' / 'share' / 'wingather'
+
+
+def _get_state_file():
+    """Return the path to the last_shown state file."""
+    return _get_state_dir() / 'last_shown.json'
+
+
+def save_shown_state(windows_shown):
+    """Save a record of windows that were made visible by --show-hidden.
+
+    windows_shown: list of WindowInfo objects that were hidden and are now shown.
+    """
+    from wingather._version import PIP_VERSION
+
+    state_dir = _get_state_dir()
+    state_dir.mkdir(parents=True, exist_ok=True)
+
+    records = []
+    for wi in windows_shown:
+        records.append({
+            'hwnd': wi.handle,
+            'pid': wi.pid,
+            'process_name': wi.process_name,
+            'title': wi.title,
+        })
+
+    state = {
+        'version': 1,
+        'timestamp': datetime.datetime.now().isoformat(),
+        'wingather_version': PIP_VERSION,
+        'windows_shown': records,
+    }
+
+    state_file = _get_state_file()
+    with open(state_file, 'w') as f:
+        json.dump(state, f, indent=2)
+
+    logger.info(f"Saved undo state: {len(records)} window(s) to {state_file}")
+    return state_file
+
+
+def undo_show_hidden():
+    """Re-hide windows that were previously shown by --show-hidden.
+
+    Reads the state file, validates each HWND still exists and matches
+    the original PID, then hides it. Returns (hidden_count, skipped_count).
+    """
+    state_file = _get_state_file()
+    if not state_file.exists():
+        logger.error("No undo state found. Run with --show-hidden first.")
+        return 0, 0
+
+    with open(state_file, 'r') as f:
+        state = json.load(f)
+
+    records = state.get('windows_shown', [])
+    if not records:
+        logger.info("Undo state is empty — nothing to re-hide.")
+        state_file.unlink(missing_ok=True)
+        return 0, 0
+
+    timestamp = state.get('timestamp', 'unknown')
+    logger.info(f"Undo state from {timestamp}: {len(records)} window(s)")
+
+    platform = get_platform()
+    platform.setup()
+
+    hidden_count = 0
+    skipped_count = 0
+
+    for rec in records:
+        hwnd = rec['hwnd']
+        expected_pid = rec['pid']
+        proc_name = rec.get('process_name', '<unknown>')
+        title = rec.get('title', '<untitled>')
+
+        # Validate: check if the HWND still exists and belongs to the same PID
+        try:
+            import win32process
+            import win32gui
+            _, actual_pid = win32process.GetWindowThreadProcessId(hwnd)
+        except Exception:
+            logger.debug(f"  Skip: HWND {hwnd} no longer exists ({proc_name}: {title})")
+            skipped_count += 1
+            continue
+
+        if actual_pid != expected_pid:
+            logger.debug(
+                f"  Skip: HWND {hwnd} PID changed {expected_pid} -> {actual_pid} "
+                f"({proc_name}: {title})")
+            skipped_count += 1
+            continue
+
+        # Check if window is currently visible (no point hiding an already-hidden window)
+        try:
+            is_visible = win32gui.IsWindowVisible(hwnd)
+        except Exception:
+            skipped_count += 1
+            continue
+
+        if not is_visible:
+            logger.debug(f"  Skip: HWND {hwnd} already hidden ({proc_name}: {title})")
+            skipped_count += 1
+            continue
+
+        # Create a minimal WindowInfo for the platform hide call
+        from wingather.platforms.base import WindowInfo
+        wi = WindowInfo(
+            handle=hwnd, title=title, class_name='',
+            process_name=proc_name, pid=expected_pid,
+            x=0, y=0, width=0, height=0,
+            state='normal', is_visible=True,
+        )
+
+        if platform.hide_window(wi):
+            logger.debug(f"  Hidden: HWND {hwnd} ({proc_name}: {title})")
+            hidden_count += 1
+        else:
+            logger.debug(f"  Failed: HWND {hwnd} ({proc_name}: {title})")
+            skipped_count += 1
+
+    # Clean up state file
+    state_file.unlink(missing_ok=True)
+    logger.info(f"Undo complete: {hidden_count} re-hidden, {skipped_count} skipped")
+    return hidden_count, skipped_count

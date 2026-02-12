@@ -491,6 +491,16 @@ class WindowsPlatform(PlatformBase):
             logger.debug(f"Failed to show {window_info.handle}: {e}")
             return False
 
+    def hide_window(self, window_info):
+        """Hide a visible window (reverse of show_window)."""
+        _load_win32()
+        try:
+            win32gui.ShowWindow(window_info.handle, win32con.SW_HIDE)
+            return True
+        except Exception as e:
+            logger.debug(f"Failed to hide {window_info.handle}: {e}")
+            return False
+
     def move_from_virtual_desktop(self, window_info):
         """Move a cloaked window from another virtual desktop to the current one."""
         if not self.vd_helper.available:

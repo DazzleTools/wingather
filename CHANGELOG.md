@@ -4,6 +4,18 @@ All notable changes to wingather will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.0-alpha] - 2026-02-12
+
+### Added
+- `--undo` flag to reverse `--show-hidden` by re-hiding previously revealed windows
+- State file (`last_shown.json`) auto-saved after `--show-hidden` runs for undo support
+- `hide_window()` platform method (Windows implementation via `ShowWindow(SW_HIDE)`)
+- HWND + PID cross-validation on undo to prevent hiding wrong windows after handle reuse
+- Graceful skip of stale entries (closed windows, PID mismatches) during undo
+- `docs/hidden-windows.md` — guide to hidden window types (DDE, GDI+, .NET event handlers, tray icons, GPU drivers, shell internals) so users understand what `--show-hidden` reveals
+- `PROJECT_PHASE` version field — dual-level maturity signaling: project-wide phase (prealpha/alpha/beta/stable) independent of per-MINOR feature phase
+- `--version` now shows both levels: `wingather PREALPHA 0.2.0-alpha (build string)`
+
 ## [0.1.3-alpha] - 2026-02-12
 
 ### Changed

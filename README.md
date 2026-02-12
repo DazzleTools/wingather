@@ -36,8 +36,9 @@ wingather
 # Dry run -- just list what's out there
 wingather --list-only
 
-# Also reveal hidden windows (use with caution)
+# Also reveal hidden windows (use with caution; see docs/hidden-windows.md)
 wingather --show-hidden
+wingather --undo              # re-hide them
 
 # Center on a specific monitor (0=primary, 1=secondary, etc.)
 wingather --monitor 1

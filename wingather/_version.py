@@ -10,22 +10,41 @@ Example: 0.1.0_main_4-20260211-a1b2c3d4
 
 To manually update: ./scripts/update-version.sh
 To bump version: edit MAJOR, MINOR, PATCH below
+
+Version levels:
+  PROJECT_PHASE: Global project maturity (prealpha → alpha → beta → stable).
+                 Changes rarely, when the overall project hits a threshold.
+  PHASE:         Per-MINOR feature set maturity (alpha → beta → None).
+                 Drops when a MINOR's feature set is complete.
+                 Example: BETA 0.5.1-alpha = project is beta, 0.5.x features in progress.
 """
 
 # Version components - edit these for version bumps
 MAJOR = 0
-MINOR = 1
-PATCH = 3
-PHASE = "alpha"  # Options: None, "alpha", "beta", "rc1", etc.
+MINOR = 2
+PATCH = 0
+PHASE = "alpha"  # Per-MINOR feature set: None, "alpha", "beta", "rc1", etc.
+PROJECT_PHASE = "prealpha"  # Project-wide: "prealpha", "alpha", "beta", "stable"
 
 # Auto-updated by git hooks - do not edit manually
-__version__ = "0.1.3-alpha_main_7-20260212-85c44fc9"
+__version__ = "0.2.0-alpha_main_8-20260212-12959105"
 __app_name__ = "wingather"
 
 
 def get_version():
     """Return the full version string including branch and build info."""
     return __version__
+
+
+def get_display_version():
+    """Return a human-friendly version string with project phase.
+
+    Example: 'PREALPHA 0.2.0-alpha' or 'BETA 0.5.1' or '1.0.0'
+    """
+    base = get_base_version()
+    if PROJECT_PHASE and PROJECT_PHASE != "stable":
+        return f"{PROJECT_PHASE.upper()} {base}"
+    return base
 
 
 def get_base_version():
@@ -73,3 +92,4 @@ def get_pip_version():
 VERSION = get_version()
 BASE_VERSION = get_base_version()
 PIP_VERSION = get_pip_version()
+DISPLAY_VERSION = get_display_version()

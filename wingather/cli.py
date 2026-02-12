@@ -5,8 +5,8 @@ import json
 import logging
 import sys
 
-from wingather import __version__, __app_name__
-from wingather.core import gather_windows
+from wingather import __version__, __app_name__, DISPLAY_VERSION
+from wingather.core import gather_windows, undo_show_hidden
 
 
 def build_parser():
@@ -23,6 +23,7 @@ examples:
   %(prog)s -tp xntimer.exe -tp "myapp*"    Trust multiple processes (skip flagging)
   %(prog)s --trust-file mytrust.txt        Trust from file (one per line)
   %(prog)s --no-default-trust --dry-run    Flag everything, ignore defaults
+  %(prog)s --undo                           Re-hide windows from last --show-hidden
   %(prog)s -xp notepad.exe --dry-run       Exclude a process entirely
   %(prog)s -f "*chrome*" --dry-run         Only affect Chrome windows
   %(prog)s --json --dry-run                Output as JSON
@@ -43,7 +44,8 @@ Report bugs: https://github.com/DazzleTools/wingather/issues
 Copyright (C) 2026 Dustin Darcy. Licensed under GPL-3.0.""",
     )
     parser.add_argument(
-        '--version', action='version', version=f'{__app_name__} {__version__}'
+        '--version', action='version',
+        version=f'{__app_name__} {DISPLAY_VERSION} ({__version__})'
     )
     parser.add_argument(
         '--list-only', '-l', action='store_true',
@@ -55,7 +57,11 @@ Copyright (C) 2026 Dustin Darcy. Licensed under GPL-3.0.""",
     )
     parser.add_argument(
         '--show-hidden', action='store_true',
-        help='Also reveal hidden windows (use with caution)'
+        help='Also reveal hidden windows (use with caution; use --undo to reverse)'
+    )
+    parser.add_argument(
+        '--undo', action='store_true',
+        help='Re-hide windows that were shown by a previous --show-hidden run'
     )
     parser.add_argument(
         '--include-virtual', action='store_true',
@@ -118,6 +124,16 @@ def main(argv=None):
         level=level,
         format='%(levelname)s: %(message)s',
     )
+
+    # Handle --undo: re-hide windows from previous --show-hidden
+    if args.undo:
+        hidden_count, skipped_count = undo_show_hidden()
+        if hidden_count or skipped_count:
+            print(f"\n  Undo complete: {hidden_count} window(s) re-hidden"
+                  f"{f', {skipped_count} skipped (stale/closed)' if skipped_count else ''}")
+        else:
+            print("\n  No undo state found. Run with --show-hidden first.")
+        return
 
     # Build process exclusion list
     exclude_processes = list(args.exclude_process)

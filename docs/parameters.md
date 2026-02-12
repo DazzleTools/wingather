@@ -36,13 +36,28 @@ wingather --version
 
 ### `--show-hidden`
 
-Also reveal windows that have the `WS_VISIBLE` style flag unset. These are windows that have been explicitly hidden from the user.
+Also reveal windows that have the `WS_VISIBLE` style flag unset. These are windows that have been explicitly hidden by the OS or applications for background communication, rendering, and system services.
 
-**Use with caution** — some hidden windows are intentionally hidden by the OS or applications and revealing them may cause visual glitches.
+**Use with caution** — a typical desktop has 50-100+ hidden windows, and the vast majority are normal operating system internals (DDE servers, GDI+ surfaces, .NET event handlers, tray icon message pumps). Revealing them will clutter your desktop with non-interactive phantom windows. Use `--undo` to reverse.
+
+Always preview with `--dry-run` first:
 
 ```bash
-wingather --show-hidden --dry-run
+wingather --show-hidden --dry-run    # preview what would be revealed
+wingather --show-hidden              # reveal (state saved for --undo)
 ```
+
+See [hidden-windows.md](hidden-windows.md) for a detailed guide to what these windows are and when they deserve attention.
+
+### `--undo`
+
+Re-hide windows that were revealed by a previous `--show-hidden` run. Reads the saved state file, validates that each window handle still belongs to the same process (prevents hiding the wrong window after handle reuse), and calls `ShowWindow(SW_HIDE)` on each.
+
+```bash
+wingather --undo
+```
+
+State is saved automatically to `%LOCALAPPDATA%\wingather\last_shown.json` after each non-dry-run `--show-hidden`. The state file is deleted after a successful undo.
 
 ### `--include-virtual`
 
