@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "wingather"
@@ -28,7 +28,7 @@ Issues = "https://github.com/DazzleTools/wingather/issues"
 wingather = "wingather.cli:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "wingather._version.__version__"}
+version = {attr = "wingather._version.PIP_VERSION"}
 
 [tool.setuptools.packages.find]
 include = ["wingather*"]

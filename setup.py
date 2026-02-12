@@ -1,9 +1,14 @@
+import os
 from setuptools import setup, find_packages
-from wingather._version import __version__
+
+# Read version from _version.py (exec, not import — package isn't installed yet)
+version_file = os.path.join(os.path.dirname(__file__), "wingather", "_version.py")
+with open(version_file) as f:
+    exec(f.read())
 
 setup(
     name="wingather",
-    version=__version__,
+    version=get_pip_version() if "get_pip_version" in locals() else "0.0.0",
     description="Windows admin and security tool for discovering, recovering, and managing hidden or inaccessible windows",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
