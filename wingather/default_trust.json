@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "description": "Default trusted processes shipped with wingather. Entries with 'verify: microsoft' are validated at runtime by checking the executable path and Authenticode signature (must be a signed Microsoft OS binary). Use --no-default-trust to bypass this list.",
+  "processes": [
+    {
+      "pattern": "explorer.exe",
+      "reason": "Windows shell (desktop, taskbar, file explorer)",
+      "verify": "microsoft",
+      "expected_paths": ["C:\\Windows\\explorer.exe"]
+    },
+    {
+      "pattern": "ApplicationFrameHost.exe",
+      "reason": "UWP app frame host (hosts modern Windows apps)",
+      "verify": "microsoft",
+      "expected_paths": ["C:\\Windows\\system32\\ApplicationFrameHost.exe"]
+    },
+    {
+      "pattern": "TextInputHost.exe",
+      "reason": "Windows text input UI (emoji picker, touch keyboard)",
+      "verify": "microsoft",
+      "expected_paths": ["C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_*\\TextInputHost.exe"]
+    },
+    {
+      "pattern": "ShellExperienceHost.exe",
+      "reason": "Windows Shell Experience (action center, notifications)",
+      "verify": "microsoft",
+      "expected_paths": ["C:\\Windows\\SystemApps\\ShellExperienceHost_*\\ShellExperienceHost.exe"]
+    },
+    {
+      "pattern": "SearchHost.exe",
+      "reason": "Windows search UI",
+      "verify": "microsoft",
+      "expected_paths": ["C:\\Windows\\SystemApps\\MicrosoftWindows.Client.CBS_*\\SearchHost.exe"]
+    },
+    {
+      "pattern": "StartMenuExperienceHost.exe",
+      "reason": "Windows Start menu",
+      "verify": "microsoft",
+      "expected_paths": ["C:\\Windows\\SystemApps\\Microsoft.Windows.StartMenuExperienceHost_*\\StartMenuExperienceHost.exe"]
+    },
+    {
+      "pattern": "SystemSettings.exe",
+      "reason": "Windows Settings app",
+      "verify": "microsoft",
+      "expected_paths": ["C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe"]
+    },
+    {
+      "pattern": "LockApp.exe",
+      "reason": "Windows lock screen",
+      "verify": "microsoft",
+      "expected_paths": ["C:\\Windows\\SystemApps\\Microsoft.LockApp_*\\LockApp.exe"]
+    },
+    {
+      "pattern": "xntimer.exe",
+      "reason": "XN Timer widget (tiny always-on-top timer)"
+    },
+    {
+      "pattern": "InputDirector*",
+      "reason": "InputDirector KVM software (multi-PC input sharing)"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or Discussion
+    url: https://github.com/DazzleTools/wingather/discussions
+    about: Ask questions or discuss ideas
+  - name: Documentation
+    url: https://github.com/DazzleTools/wingather/tree/main/docs
+    about: Check documentation for setup and usage

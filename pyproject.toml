@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "wingather"
+dynamic = ["version"]
+description = "Windows admin and security tool for discovering, recovering, and managing hidden or inaccessible windows"
+readme = "README.md"
+license = {text = "GPL-3.0"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Dustin", email = "6962246+djdarcy@users.noreply.github.com"},
+]
+keywords = ["windows", "window-management", "security", "admin-tools", "utility", "hidden-windows", "dazzletools", "dazzle"]
+
+dependencies = [
+    "psutil>=5.9.0",
+    "pywin32>=305; platform_system=='Windows'",
+]
+
+[project.urls]
+Homepage = "https://github.com/DazzleTools/wingather"
+Repository = "https://github.com/DazzleTools/wingather"
+Issues = "https://github.com/DazzleTools/wingather/issues"
+
+[project.scripts]
+wingather = "wingather.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "wingather._version.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["wingather*"]

@@ -130,9 +130,6 @@ credentials.json
 
 # Project-specific directories
 /log/
-/logs/
-/private/
-/convos/
 
 #######################
 # Project Specific    #
@@ -141,6 +138,7 @@ credentials.json
 # Add custom patterns below
 
 # RepoKit Private Content Protection (DO NOT REMOVE)
+.repokit.json
 **/private_*
 .env.private
 CLAUDE.md
