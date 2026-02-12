@@ -4,6 +4,11 @@ All notable changes to wingather will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.1.3-alpha] - 2026-02-12
+
+### Changed
+- Release workflow: switch from API token secrets to OIDC trusted publishers for PyPI and Test PyPI publishing (more secure, no token management needed)
+
 ## [0.1.2-alpha] - 2026-02-12
 
 ### Fixed

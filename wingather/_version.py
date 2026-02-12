@@ -15,11 +15,11 @@ To bump version: edit MAJOR, MINOR, PATCH below
 # Version components - edit these for version bumps
 MAJOR = 0
 MINOR = 1
-PATCH = 2
+PATCH = 3
 PHASE = "alpha"  # Options: None, "alpha", "beta", "rc1", etc.
 
 # Auto-updated by git hooks - do not edit manually
-__version__ = "0.1.2-alpha_main_7-20260212-7186321f"
+__version__ = "0.1.3-alpha_main_7-20260212-85c44fc9"
 __app_name__ = "wingather"
 
 
