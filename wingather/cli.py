@@ -19,7 +19,7 @@ examples:
   %(prog)s --dry-run -v                    Preview suspicious windows (verbose)
   %(prog)s --all --dry-run                 Preview ALL windows (original behavior)
   %(prog)s -n --show-hidden                Dryrun + reveal suspicious hidden windows
-  %(prog)s --show-hidden --all             Reveal ALL hidden windows (use with caution)
+  %(prog)s --show-hidden --all             Reveal ALL hidden (caution with -a; --undo to reverse)
   %(prog)s --undo                          Re-hide windows from last --show-hidden
   %(prog)s --include-virtual               Pull windows from other desktops
   %(prog)s -tp xntimer.exe -tp "myapp*"    Trust multiple processes (skip flagging)
@@ -30,7 +30,7 @@ examples:
   %(prog)s --json --dry-run                Output as JSON
 
 common:
-  %(prog)s -n -iv -v --dry-run             Preview suspicious windows on all desktops (verbose)
+  %(prog)s -iv -sh -v --dry-run            Preview all oddities across all desktops (verbose)
 
 concern levels:
   [!1] ALERT    Highest concern (e.g., off-screen + dialog)
