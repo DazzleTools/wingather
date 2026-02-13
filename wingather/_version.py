@@ -22,12 +22,13 @@ Version levels:
 # Version components - edit these for version bumps
 MAJOR = 0
 MINOR = 2
-PATCH = 2
+PATCH = 3
 PHASE = "alpha"  # Per-MINOR feature set: None, "alpha", "beta", "rc1", etc.
+PRE_RELEASE_NUM = 1  # PEP 440 pre-release number (e.g., a1, b2)
 PROJECT_PHASE = "prealpha"  # Project-wide: "prealpha", "alpha", "beta", "stable"
 
 # Auto-updated by git hooks - do not edit manually
-__version__ = "0.2.2-alpha_main_10-20260213-5c9e7cbb"
+__version__ = "0.2.3-alpha_main_21-20260213-99562918"
 __app_name__ = "wingather"
 
 
@@ -70,7 +71,7 @@ def get_pip_version():
     base = f"{MAJOR}.{MINOR}.{PATCH}"
 
     # Map phase to PEP 440 pre-release segment
-    phase_map = {"alpha": "a0", "beta": "b0"}
+    phase_map = {"alpha": f"a{PRE_RELEASE_NUM}", "beta": f"b{PRE_RELEASE_NUM}"}
     if PHASE:
         base += phase_map.get(PHASE, PHASE)
 

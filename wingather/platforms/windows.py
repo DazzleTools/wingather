@@ -509,7 +509,7 @@ class WindowsPlatform(PlatformBase):
         return self.vd_helper.move_to_current_desktop(window_info.handle)
 
     def center_window(self, window_info, target_x, target_y, area_width, area_height,
-                      topmost=False):
+                      offset_x=0, offset_y=0):
         """Move window to be centered within the given area.
 
         Handles edge cases:
@@ -517,8 +517,8 @@ class WindowsPlatform(PlatformBase):
         - Collapsed/tiny windows (hidden by shrinking): restores to sane default
         - Oversized windows: clamped to fit within the target area
 
-        If topmost=True, window is placed at HWND_TOPMOST z-order so it
-        stays on top (used for suspicious windows).
+        offset_x, offset_y: cascade offset from dead center for visual separation.
+        Positions are clamped to the monitor work area.
         """
         _load_win32()
         try:
@@ -551,11 +551,15 @@ class WindowsPlatform(PlatformBase):
             if h > area_height:
                 h = area_height
 
-            # Calculate centered position
-            cx = target_x + (area_width - w) // 2
-            cy = target_y + (area_height - h) // 2
+            # Calculate centered position with cascade offset
+            cx = target_x + (area_width - w) // 2 + offset_x
+            cy = target_y + (area_height - h) // 2 + offset_y
 
-            z_order = win32con.HWND_TOPMOST if topmost else win32con.HWND_TOP
+            # Clamp to work area bounds
+            cx = max(target_x, min(cx, target_x + area_width - w))
+            cy = max(target_y, min(cy, target_y + area_height - h))
+
+            z_order = win32con.HWND_TOP
             win32gui.SetWindowPos(
                 window_info.handle,
                 z_order,

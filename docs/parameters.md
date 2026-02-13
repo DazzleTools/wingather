@@ -145,7 +145,7 @@ wingather -m 0        # center on primary (default)
 
 ### `--trust`, `-tp` _NAME_
 
-Trust a process name pattern — suppress suspicious flagging for matching windows. Trusted windows are still gathered/moved normally, but they won't receive `[!N]` concern flags or TOPMOST z-order treatment.
+Trust a process name pattern — suppress suspicious flagging for matching windows. Trusted windows are still gathered/moved normally, but they won't receive `[!N]` concern flags.
 
 Repeatable. Uses `fnmatch` patterns. These are **name-only** matches (no path or signature verification, unlike the built-in defaults).
 
@@ -194,13 +194,15 @@ wingather -v --dry-run
 
 Windows are scored using weighted indicators. The total score maps to a DEFCON-style concern level:
 
-| Score | Level | Label | TOPMOST |
-|-------|-------|-------|---------|
-| 5+    | 1     | ALERT   | Yes |
-| 4     | 2     | ALERT   | Yes |
-| 3     | 3     | CONCERN | Yes |
-| 2     | 4     | NOTE    | No  |
-| 1     | 5     | NOTE    | No  |
+| Score | Level | Label |
+|-------|-------|-------|
+| 5+    | 1     | ALERT   |
+| 4     | 2     | ALERT   |
+| 3     | 3     | CONCERN |
+| 2     | 4     | NOTE    |
+| 1     | 5     | NOTE    |
+
+All flagged windows are centered (with cascade offsets so multiple windows don't stack) and brought to the foreground. Higher concern windows appear on top of lower concern ones.
 
 ### Indicator Weights
 

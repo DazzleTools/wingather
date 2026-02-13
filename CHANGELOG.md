@@ -4,6 +4,21 @@ All notable changes to wingather will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.3-alpha] - 2026-02-13
+
+### Changed
+- **TOPMOST removed**: Suspicious windows no longer receive `HWND_TOPMOST` (sticky z-order pin). All suspicious windows now use one-time z-order raise via `bring_to_front`. This prevents wingather from permanently altering your desktop z-order after exit.
+- **Cascade positioning**: Multiple suspicious windows are now spread around screen center using cardinal/diagonal offsets instead of stacking at dead center. Highest concern window stays at center; lower concern windows fan out around it. All positions are clamped to the monitor work area.
+- Processing order simplified: single sorted pass (level 5→1) replaces the previous high/low concern tier split.
+
+### Added
+- `PRE_RELEASE_NUM` version constant for PEP 440 pre-release number control (enables `0.2.3a1` instead of hardcoded `a0`)
+- Boundary clamping: cascade offsets can never push windows off-screen
+
+### Removed
+- `TOPMOST_THRESHOLD` constant
+- TOPMOST z-order behavior from the default pipeline (platform capability preserved for future `--bring --topmost`)
+
 ## [0.2.2-alpha] - 2026-02-13
 
 ### Fixed

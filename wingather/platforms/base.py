@@ -82,10 +82,10 @@ class PlatformBase(ABC):
 
     @abstractmethod
     def center_window(self, window_info, target_x, target_y, area_width, area_height,
-                      topmost=False):
+                      offset_x=0, offset_y=0):
         """Move window to be centered within the given area.
 
-        If topmost=True, place at HWND_TOPMOST z-order (for suspicious windows).
+        offset_x, offset_y: cascade offset from dead center for visual separation.
         """
         pass
 

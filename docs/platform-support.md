@@ -22,7 +22,7 @@
 - Window restore (`ShowWindow`), move/resize (`SetWindowPos`), and center on monitor
 - DWM cloaking detection (`DwmGetWindowAttribute` with `DWMWA_CLOAKED`)
 - Virtual desktop support via `IVirtualDesktopManager` COM interface
-- TOPMOST z-order for high-concern windows (`HWND_TOPMOST`)
+- Cascade positioning for suspicious windows with z-order priority
 - Process executable path resolution for trust verification
 - Microsoft Authenticode signature verification via PowerShell `Get-AuthenticodeSignature`
 
@@ -99,8 +99,8 @@ The `PlatformBase` abstract class defines the interface that each platform must 
 - `setup()` — platform initialization (e.g., DPI awareness)
 - `enumerate_windows()` — discover all top-level windows
 - `restore_window()` — restore from minimized/hidden state
-- `move_window()` — reposition a window
-- `set_topmost()` — set TOPMOST z-order
+- `center_window()` — center and position with cascade offset
+- `bring_to_front()` — bring window to foreground z-order
 - `get_monitor_work_area()` — get usable screen area
 - `is_elevated()` — check for admin/root privileges
 

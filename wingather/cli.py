@@ -33,11 +33,13 @@ common:
   %(prog)s -n -iv -v --dry-run             Preview suspicious windows on all desktops (verbose)
 
 concern levels:
-  [!1] ALERT    Highest concern (e.g., off-screen + dialog). Set TOPMOST.
-  [!2] ALERT    High concern (e.g., off-screen). Set TOPMOST.
-  [!3] CONCERN  Moderate (e.g., shrunk window). Set TOPMOST.
-  [!4] NOTE     Low concern (e.g., dialog, partial off-screen). Not TOPMOST.
-  [!5] NOTE     Informational (e.g., cloaked on another desktop). Not TOPMOST.
+  [!1] ALERT    Highest concern (e.g., off-screen + dialog)
+  [!2] ALERT    High concern (e.g., off-screen)
+  [!3] CONCERN  Moderate (e.g., shrunk window)
+  [!4] NOTE     Low concern (e.g., dialog, partial off-screen)
+  [!5] NOTE     Informational (e.g., cloaked on another desktop)
+  All flagged windows are centered and brought to the foreground.
+  Higher concern windows appear on top of lower concern ones.
 
 trust verification:
   Built-in trusted processes (e.g., explorer.exe) are verified by checking
@@ -377,7 +379,7 @@ def _print_table(results, mode):
             by_level[w.concern_level] += 1
         parts = [f"{count}x level {lvl}" for lvl, count in sorted(by_level.items())]
         print(f"  Flagged: {len(flagged)} window(s) ({', '.join(parts)})")
-        print(f"  Levels 1-3 set TOPMOST. Scale: 1=highest concern, 5=informational.")
+        print(f"  Scale: 1=highest concern, 5=informational.")
 
     # Show trusted (suppressed) windows so users know what was skipped
     trusted = [w for w in results if w.trusted]

@@ -4,7 +4,6 @@ import pytest
 from wingather.core import (
     _score_to_level,
     CONCERN_WEIGHTS,
-    TOPMOST_THRESHOLD,
 )
 
 
@@ -62,7 +61,7 @@ class TestConcernWeights:
         assert _score_to_level(score) == 3
 
     def test_dialog_alone_triggers_level_4(self):
-        """Dialog (weight 2) alone → level 4 (flagged but not TOPMOST)."""
+        """Dialog (weight 2) alone → level 4 (low concern)."""
         score = CONCERN_WEIGHTS['dialog']
         assert _score_to_level(score) == 4
 
@@ -75,10 +74,6 @@ class TestConcernWeights:
         """Trust verification failure (weight 5) → instant level 1."""
         score = CONCERN_WEIGHTS['trust-verification-failed']
         assert _score_to_level(score) == 1
-
-    def test_topmost_threshold_is_3(self):
-        """Levels 1-3 get TOPMOST, levels 4-5 don't."""
-        assert TOPMOST_THRESHOLD == 3
 
     def test_all_weights_are_positive(self):
         for key, weight in CONCERN_WEIGHTS.items():

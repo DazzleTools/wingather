@@ -65,13 +65,14 @@ class TestSimulateWindowMode:
                          include_virtual=False, act_on_all=False)
         assert 'would:restore' in wi.action_taken
 
-    def test_hidden_suspicious_with_topmost(self):
-        """Hidden + suspicious at level 2 → would:show includes +TOPMOST."""
+    def test_hidden_suspicious_foreground(self):
+        """Hidden + suspicious at level 2 → would:show includes +foreground."""
         wi = _make_window(state='hidden', suspicious=True, concern_level=2)
         _simulate_window(wi, 0, 0, 1920, 1080, show_hidden=True,
                          include_virtual=False, act_on_all=False)
-        assert '+TOPMOST' in wi.action_taken
+        assert '+foreground' in wi.action_taken
         assert 'would:show' in wi.action_taken
+        assert '+TOPMOST' not in wi.action_taken
 
     def test_cloaked_not_suspicious_not_virtual(self):
         """Cloaked + not suspicious + not include_virtual → skip:cloaked."""
@@ -101,21 +102,72 @@ class TestSimulateWindowMode:
                          include_virtual=False, act_on_all=True)
         assert '+foreground' not in wi.action_taken
 
-    def test_suspicious_level3_gets_topmost_and_foreground(self):
-        """High-concern (level 3) gets both +TOPMOST and +foreground."""
+    def test_suspicious_level3_gets_foreground(self):
+        """Level 3 suspicious gets +foreground, no TOPMOST."""
         wi = _make_window(state='normal', suspicious=True, concern_level=3)
         _simulate_window(wi, 0, 0, 1920, 1080, show_hidden=False,
                          include_virtual=False, act_on_all=True)
-        assert '+TOPMOST' in wi.action_taken
         assert '+foreground' in wi.action_taken
+        assert '+TOPMOST' not in wi.action_taken
 
-    def test_suspicious_level4_gets_foreground_not_topmost(self):
-        """Low-concern (level 4) gets +foreground but not +TOPMOST."""
+    def test_suspicious_level4_gets_foreground(self):
+        """Level 4 suspicious gets +foreground, no TOPMOST."""
         wi = _make_window(state='normal', suspicious=True, concern_level=4)
         _simulate_window(wi, 0, 0, 1920, 1080, show_hidden=False,
                          include_virtual=False, act_on_all=True)
         assert '+foreground' in wi.action_taken
         assert '+TOPMOST' not in wi.action_taken
+
+
+class TestCascadeOffsets:
+    """Test cascade positioning offset computation."""
+
+    def test_single_window_centered(self):
+        """Single suspicious window has offset (0, 0) — dead center."""
+        from wingather.core import _compute_cascade_offsets
+        offsets = _compute_cascade_offsets(1)
+        assert offsets == [(0, 0)]
+
+    def test_two_windows_center_and_offset(self):
+        """Two windows: one at center, one offset."""
+        from wingather.core import _compute_cascade_offsets, CASCADE_RADIUS
+        offsets = _compute_cascade_offsets(2)
+        assert offsets[0] == (0, 0)
+        assert offsets[1] == (-CASCADE_RADIUS, -CASCADE_RADIUS)
+
+    def test_five_windows_all_unique(self):
+        """Five windows get five unique positions."""
+        from wingather.core import _compute_cascade_offsets
+        offsets = _compute_cascade_offsets(5)
+        assert len(offsets) == 5
+        assert len(set(offsets)) == 5  # all unique
+
+    def test_zero_windows(self):
+        """Zero count returns empty list."""
+        from wingather.core import _compute_cascade_offsets
+        assert _compute_cascade_offsets(0) == []
+
+    def test_cascade_offset_in_simulation(self):
+        """Suspicious window with offset has adjusted target position."""
+        wi = _make_window(state='normal', suspicious=True, concern_level=3)
+        _simulate_window(wi, 0, 0, 1920, 1080, show_hidden=False,
+                         include_virtual=False, act_on_all=True,
+                         offset_x=60, offset_y=-60)
+        # Center of 1920x1080 for 800x600 window = (560, 240)
+        # With offset (+60, -60) = (620, 180)
+        assert wi.target_x == 620
+        assert wi.target_y == 180
+
+    def test_cascade_offset_clamped_to_bounds(self):
+        """Large offsets are clamped to work area bounds."""
+        wi = _make_window(state='normal', suspicious=True, concern_level=5,
+                         width=800, height=600)
+        _simulate_window(wi, 0, 0, 1920, 1080, show_hidden=False,
+                         include_virtual=False, act_on_all=True,
+                         offset_x=2000, offset_y=2000)
+        # Should be clamped: max x = 1920 - 800 = 1120, max y = 1080 - 600 = 480
+        assert wi.target_x == 1120
+        assert wi.target_y == 480
 
 
 class TestShowHiddenBanner:

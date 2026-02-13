@@ -91,11 +91,11 @@ wingather flags windows that exhibit suspicious behavior using a weighted concer
 
 | Level | Label | Example Triggers | Action |
 |-------|-------|-------------------|--------|
-| `[!1]` | ALERT | Off-screen + dialog, trust verification failed | Set TOPMOST |
-| `[!2]` | ALERT | Off-screen window | Set TOPMOST |
-| `[!3]` | CONCERN | Heavily shrunk window | Set TOPMOST |
-| `[!4]` | NOTE | Dialog, partially off-screen | Flagged only |
-| `[!5]` | NOTE | Cloaked on another desktop | Flagged only |
+| `[!1]` | ALERT | Off-screen + dialog, trust verification failed | Centered + foreground |
+| `[!2]` | ALERT | Off-screen window | Centered + foreground |
+| `[!3]` | CONCERN | Heavily shrunk window | Centered + foreground |
+| `[!4]` | NOTE | Dialog, partially off-screen | Centered + foreground |
+| `[!5]` | NOTE | Cloaked on another desktop | Centered + foreground |
 
 See [docs/parameters.md](docs/parameters.md) for indicator weights and scoring details.
 

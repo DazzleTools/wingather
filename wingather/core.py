@@ -29,8 +29,6 @@ DIALOG_CLASSES = {
 # level (1 = highest concern, 5 = lowest/informational).
 #
 # Score → Level:  5+ → 1,  4 → 2,  3 → 3,  2 → 4,  1 → 5
-#
-# TOPMOST z-order is applied for levels 1-3 (score >= 3).
 CONCERN_WEIGHTS = {
     'off-screen':                4,  # completely invisible to the user
     'shrunk':                    3,  # deliberately tiny, hiding in plain sight
@@ -41,8 +39,47 @@ CONCERN_WEIGHTS = {
     'trust-verification-failed': 5,  # masquerading as a trusted process name
 }
 
-# Level 1-3 get TOPMOST treatment; 4-5 are flagged but not forced on top
-TOPMOST_THRESHOLD = 3
+# Cascade positioning: offset suspicious windows around screen center so
+# multiple flagged windows are all visible simultaneously.
+# Index 0 = dead center (reserved for highest priority), then outward.
+CASCADE_RADIUS = 60  # pixels from center per offset step
+
+_CASCADE_DIRECTIONS = [
+    (0, 0),       # center (highest priority)
+    (-1, -1),     # top-left
+    (1, -1),      # top-right
+    (-1, 1),      # bottom-left
+    (1, 1),       # bottom-right
+    (0, -1),      # top
+    (-1, 0),      # left
+    (1, 0),       # right
+    (0, 1),       # bottom
+]
+
+
+def _compute_cascade_offsets(count):
+    """Compute (offset_x, offset_y) for each position in a cascade.
+
+    Returns list indexed from 0 (center/highest priority) to count-1 (outermost).
+    Positions 0-8 use fixed cardinal/diagonal directions.
+    Positions 9+ use a ring-based fallback at increasing radius.
+    """
+    if count <= 0:
+        return []
+    offsets = []
+    for i in range(count):
+        if i < len(_CASCADE_DIRECTIONS):
+            dx, dy = _CASCADE_DIRECTIONS[i]
+            offsets.append((dx * CASCADE_RADIUS, dy * CASCADE_RADIUS))
+        else:
+            import math
+            ring = (i - len(_CASCADE_DIRECTIONS)) // 8 + 2
+            pos_in_ring = (i - len(_CASCADE_DIRECTIONS)) % 8
+            angle = pos_in_ring * (math.pi / 4)
+            radius = CASCADE_RADIUS * ring
+            offsets.append((int(radius * math.cos(angle)),
+                           int(radius * math.sin(angle))))
+    return offsets
 
 
 def gather_windows(list_only=False, dry_run=False, show_hidden=False,
@@ -61,7 +98,7 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
       exclude_processes: List of process name patterns to exclude (fnmatch)
       trusted_processes: List of process name patterns to whitelist from suspicious
                          flagging (fnmatch). These windows still get processed
-                         normally but won't be flagged [!] or set TOPMOST.
+                         normally but won't be flagged [!].
       no_default_trust:  If True, skip the built-in default trust list. User-provided
                          -tp patterns still apply.
       gather_all:        If True, act on ALL windows (original behavior). If False
@@ -166,13 +203,18 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
     if list_only:
         return windows
 
-    # Split into concern tiers:
-    #   high_concern = levels 1-3 (get TOPMOST z-order)
-    #   low_concern  = levels 4-5 (flagged but not forced on top)
-    #   normal       = no concern
-    high_concern = [w for w in windows if w.concern_level and w.concern_level <= TOPMOST_THRESHOLD]
-    low_concern = [w for w in windows if w.concern_level and w.concern_level > TOPMOST_THRESHOLD]
+    # Split into suspicious and normal. Sort suspicious by concern_level
+    # descending (level 5 first, level 1 last) so highest priority is
+    # processed last and ends up on top of z-order.
+    suspicious = sorted(
+        [w for w in windows if w.suspicious],
+        key=lambda w: w.concern_level, reverse=True)
     normal = [w for w in windows if not w.suspicious]
+
+    # Compute cascade offsets: position 0 = center (highest priority),
+    # outer positions = lower priority. Reverse so first-processed = outermost.
+    cascade = _compute_cascade_offsets(len(suspicious))
+    cascade.reverse()
 
     # Track windows that were hidden and get shown (for --undo support)
     shown_windows = []
@@ -181,8 +223,7 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
     # --filter overrides the suspicious-only restriction (explicit user targeting).
     act_on_all = gather_all or filter_pattern is not None
 
-    # Process normal first, then low concern, then high concern last
-    # (last processed = on top of z-order)
+    # Process normal windows first (no cascade offset)
     for wi in normal:
         if not act_on_all:
             # Default mode: skip non-suspicious windows
@@ -194,31 +235,23 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
         else:
             was_hidden = wi.state == 'hidden'
             _process_window(platform, wi, area_x, area_y, area_w, area_h,
-                            show_hidden, include_virtual, topmost=False)
+                            show_hidden, include_virtual)
             if was_hidden and show_hidden and wi.action_taken and 'shown' in wi.action_taken:
                 shown_windows.append(wi)
 
-    for wi in low_concern:
+    # Process suspicious windows with cascade offsets.
+    # Lowest concern first (outermost), highest concern last (center, on top).
+    for i, wi in enumerate(suspicious):
+        ox, oy = cascade[i] if i < len(cascade) else (0, 0)
         if dry_run:
             _simulate_window(wi, area_x, area_y, area_w, area_h,
-                             show_hidden, include_virtual, act_on_all)
+                             show_hidden, include_virtual, act_on_all,
+                             offset_x=ox, offset_y=oy)
         else:
             was_hidden = wi.state == 'hidden'
             _process_window(platform, wi, area_x, area_y, area_w, area_h,
-                            show_hidden, include_virtual, topmost=False,
-                            act_on_all=act_on_all)
-            if was_hidden and show_hidden and wi.action_taken and 'shown' in wi.action_taken:
-                shown_windows.append(wi)
-
-    for wi in high_concern:
-        if dry_run:
-            _simulate_window(wi, area_x, area_y, area_w, area_h,
-                             show_hidden, include_virtual, act_on_all)
-        else:
-            was_hidden = wi.state == 'hidden'
-            _process_window(platform, wi, area_x, area_y, area_w, area_h,
-                            show_hidden, include_virtual, topmost=True,
-                            act_on_all=act_on_all)
+                            show_hidden, include_virtual,
+                            act_on_all=act_on_all, offset_x=ox, offset_y=oy)
             if was_hidden and show_hidden and wi.action_taken and 'shown' in wi.action_taken:
                 shown_windows.append(wi)
 
@@ -226,8 +259,8 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
     if shown_windows and not dry_run:
         save_shown_state(shown_windows)
 
-    # Return sorted: highest concern first, then low concern, then normal
-    return high_concern + low_concern + normal
+    # Return sorted: highest concern first, then normal
+    return list(reversed(suspicious)) + normal
 
 
 def _score_to_level(score):
@@ -557,41 +590,45 @@ def _exclude_by_process(windows, exclude_processes):
     return filtered
 
 
-def _compute_centered_position(wi, area_x, area_y, area_w, area_h):
+def _compute_centered_position(wi, area_x, area_y, area_w, area_h,
+                               offset_x=0, offset_y=0):
     """Calculate the centered (x, y) for a window within the target area.
 
     Accounts for collapsed/tiny windows by using sane defaults.
+    Applies cascade offset and clamps to work area bounds.
     """
     w = wi.width if wi.width >= MIN_SANE_WIDTH else DEFAULT_RESTORE_WIDTH
     h = wi.height if wi.height >= MIN_SANE_HEIGHT else DEFAULT_RESTORE_HEIGHT
     w = min(w, area_w)
     h = min(h, area_h)
-    cx = area_x + (area_w - w) // 2
-    cy = area_y + (area_h - h) // 2
+    cx = area_x + (area_w - w) // 2 + offset_x
+    cy = area_y + (area_h - h) // 2 + offset_y
+    # Clamp to work area bounds
+    cx = max(area_x, min(cx, area_x + area_w - w))
+    cy = max(area_y, min(cy, area_y + area_h - h))
     return cx, cy
 
 
 def _simulate_window(wi, area_x, area_y, area_w, area_h,
-                     show_hidden, include_virtual, act_on_all=True):
+                     show_hidden, include_virtual, act_on_all=True,
+                     offset_x=0, offset_y=0):
     """Dry-run: determine what action would be taken and compute target position."""
 
     # Collapsed/tiny window annotation
     is_tiny = wi.width < MIN_SANE_WIDTH or wi.height < MIN_SANE_HEIGHT
     resize_note = '+resize' if is_tiny and wi.state != 'hidden' else ''
-    use_topmost = wi.concern_level and wi.concern_level <= TOPMOST_THRESHOLD
-    topmost_note = '+TOPMOST' if use_topmost else ''
     fg_note = '+foreground' if wi.suspicious else ''
 
     if wi.state == 'minimized':
-        wi.action_taken = f'would:restore{resize_note}+center{topmost_note}{fg_note}'
+        wi.action_taken = f'would:restore{resize_note}+center{fg_note}'
         wi.target_x, wi.target_y = _compute_centered_position(
-            wi, area_x, area_y, area_w, area_h)
+            wi, area_x, area_y, area_w, area_h, offset_x, offset_y)
 
     elif wi.state == 'hidden' and show_hidden:
         if act_on_all or wi.suspicious:
-            wi.action_taken = f'would:show{resize_note}+center{topmost_note}{fg_note}'
+            wi.action_taken = f'would:show{resize_note}+center{fg_note}'
             wi.target_x, wi.target_y = _compute_centered_position(
-                wi, area_x, area_y, area_w, area_h)
+                wi, area_x, area_y, area_w, area_h, offset_x, offset_y)
         else:
             wi.action_taken = 'skip:hidden-normal'
 
@@ -600,26 +637,25 @@ def _simulate_window(wi, area_x, area_y, area_w, area_h,
 
     elif wi.state == 'cloaked':
         if include_virtual or wi.suspicious:
-            wi.action_taken = f'would:pull-desktop{resize_note}+center{topmost_note}{fg_note}'
+            wi.action_taken = f'would:pull-desktop{resize_note}+center{fg_note}'
             wi.target_x, wi.target_y = _compute_centered_position(
-                wi, area_x, area_y, area_w, area_h)
+                wi, area_x, area_y, area_w, area_h, offset_x, offset_y)
         else:
             wi.action_taken = 'skip:cloaked'
 
     else:
         # normal, maximized, off-screen -- would be centered
-        wi.action_taken = f'would:center{resize_note}{topmost_note}{fg_note}'
+        wi.action_taken = f'would:center{resize_note}{fg_note}'
         wi.target_x, wi.target_y = _compute_centered_position(
-            wi, area_x, area_y, area_w, area_h)
+            wi, area_x, area_y, area_w, area_h, offset_x, offset_y)
 
 
 def _process_window(platform, wi, area_x, area_y, area_w, area_h,
-                    show_hidden, include_virtual, topmost=False,
-                    act_on_all=True):
+                    show_hidden, include_virtual,
+                    act_on_all=True, offset_x=0, offset_y=0):
     """Restore, show, and center a single window.
 
-    If topmost=True, the window is placed at HWND_TOPMOST z-order
-    (used for suspicious windows so they're immediately visible).
+    offset_x, offset_y: cascade offset from center for visual separation.
     """
     action_parts = []
 
@@ -657,20 +693,18 @@ def _process_window(platform, wi, area_x, area_y, area_w, area_h,
             wi.action_taken = 'skipped:cloaked'
             return
 
-    # Center the window (topmost flag passed to platform)
-    if platform.center_window(wi, area_x, area_y, area_w, area_h, topmost=topmost):
+    # Center the window with cascade offset
+    if platform.center_window(wi, area_x, area_y, area_w, area_h,
+                              offset_x=offset_x, offset_y=offset_y):
         action_parts.append('centered')
-        if topmost:
-            action_parts.append('TOPMOST')
         wi.target_x, wi.target_y = _compute_centered_position(
-            wi, area_x, area_y, area_w, area_h)
+            wi, area_x, area_y, area_w, area_h, offset_x, offset_y)
     else:
         action_parts.append('center-failed')
 
     # All suspicious windows get brought to front so the user sees them.
-    # Processing order (normal → low_concern → high_concern) ensures
-    # highest concern windows end up topmost in the z-order.
-    # Levels 1-3 also get TOPMOST (sticky). Levels 4-5 get a one-time raise.
+    # Processing order (level 5 first → level 1 last) ensures the
+    # highest concern windows end up on top of the z-order.
     if wi.suspicious:
         if platform.bring_to_front(wi):
             action_parts.append('foreground')
