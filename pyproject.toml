@@ -32,3 +32,6 @@ version = {attr = "wingather._version.PIP_VERSION"}
 
 [tool.setuptools.packages.find]
 include = ["wingather*"]
+
+[tool.setuptools.package-data]
+wingather = ["*.json"]

@@ -4,6 +4,11 @@ All notable changes to wingather will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.2-alpha] - 2026-02-13
+
+### Fixed
+- **Package data missing from pip install**: `default_trust.json` and `lolbins.json` were not included in the wheel, causing trust verification and auto-trust features to silently fail on pip-installed copies. Added `[tool.setuptools.package-data]` to `pyproject.toml`.
+
 ## [0.2.1-alpha] - 2026-02-12
 
 ### Changed
