@@ -49,7 +49,7 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
                    include_virtual=False, monitor_index=0,
                    filter_pattern=None, exclude_pattern=None,
                    exclude_processes=None, trusted_processes=None,
-                   no_default_trust=False):
+                   no_default_trust=False, gather_all=False):
     """
     Main entry point: enumerate windows, optionally restore/show/center them.
 
@@ -64,6 +64,9 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
                          normally but won't be flagged [!] or set TOPMOST.
       no_default_trust:  If True, skip the built-in default trust list. User-provided
                          -tp patterns still apply.
+      gather_all:        If True, act on ALL windows (original behavior). If False
+                         (default), only act on suspicious windows. --filter
+                         overrides this restriction.
     """
     platform = get_platform()
     platform.setup()
@@ -135,6 +138,24 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
     # Flag suspicious windows (off-screen, collapsed, cloaked)
     _flag_suspicious(windows, trust_entries=trust_entries or None,
                      sig_cache=sig_cache)
+
+    # Auto-trust: check if suspicious windows are Microsoft-signed OS binaries.
+    # LOLBins (cmd, powershell, mshta, etc.) are excluded from auto-trust.
+    if not no_default_trust:
+        suspicious_paths = set()
+        for wi in windows:
+            if wi.suspicious and wi.exe_path:
+                suspicious_paths.add(wi.exe_path)
+        # Only verify paths not already in the cache
+        new_paths = [p for p in suspicious_paths
+                     if os.path.normcase(os.path.normpath(p)) not in sig_cache]
+        if new_paths:
+            logger.debug(f"Checking signatures for {len(new_paths)} suspicious executable(s)")
+            new_sigs = _verify_microsoft_signatures(new_paths)
+            sig_cache.update(new_sigs)
+        lolbins = _load_lolbins()
+        _auto_trust_microsoft(windows, sig_cache, lolbins)
+
     suspicious_count = sum(1 for w in windows if w.suspicious)
     trusted_count = sum(1 for w in windows if w.trusted)
     if suspicious_count:
@@ -156,9 +177,17 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
     # Track windows that were hidden and get shown (for --undo support)
     shown_windows = []
 
+    # Determine if we should process all windows or just suspicious ones.
+    # --filter overrides the suspicious-only restriction (explicit user targeting).
+    act_on_all = gather_all or filter_pattern is not None
+
     # Process normal first, then low concern, then high concern last
     # (last processed = on top of z-order)
     for wi in normal:
+        if not act_on_all:
+            # Default mode: skip non-suspicious windows
+            wi.action_taken = 'skip:normal'
+            continue
         if dry_run:
             _simulate_window(wi, area_x, area_y, area_w, area_h,
                              show_hidden, include_virtual)
@@ -172,22 +201,24 @@ def gather_windows(list_only=False, dry_run=False, show_hidden=False,
     for wi in low_concern:
         if dry_run:
             _simulate_window(wi, area_x, area_y, area_w, area_h,
-                             show_hidden, include_virtual)
+                             show_hidden, include_virtual, act_on_all)
         else:
             was_hidden = wi.state == 'hidden'
             _process_window(platform, wi, area_x, area_y, area_w, area_h,
-                            show_hidden, include_virtual, topmost=False)
+                            show_hidden, include_virtual, topmost=False,
+                            act_on_all=act_on_all)
             if was_hidden and show_hidden and wi.action_taken and 'shown' in wi.action_taken:
                 shown_windows.append(wi)
 
     for wi in high_concern:
         if dry_run:
             _simulate_window(wi, area_x, area_y, area_w, area_h,
-                             show_hidden, include_virtual)
+                             show_hidden, include_virtual, act_on_all)
         else:
             was_hidden = wi.state == 'hidden'
             _process_window(platform, wi, area_x, area_y, area_w, area_h,
-                            show_hidden, include_virtual, topmost=True)
+                            show_hidden, include_virtual, topmost=True,
+                            act_on_all=act_on_all)
             if was_hidden and show_hidden and wi.action_taken and 'shown' in wi.action_taken:
                 shown_windows.append(wi)
 
@@ -226,6 +257,61 @@ def _load_default_trust():
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         logger.warning(f"Could not load default trust file: {trust_file}")
         return []
+
+
+def _load_lolbins():
+    """Load the LOLBin exclusion list (Microsoft-signed binaries to never auto-trust).
+
+    Returns a set of lowercase process name patterns.
+    """
+    lolbin_file = Path(__file__).parent / 'lolbins.json'
+    try:
+        with open(lolbin_file, 'r') as f:
+            data = json.load(f)
+        return set(p.lower() for p in data.get('patterns', []))
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        logger.warning(f"Could not load LOLBin list: {lolbin_file}")
+        return set()
+
+
+def _auto_trust_microsoft(windows, sig_cache, lolbins):
+    """Auto-trust suspicious windows whose executables are Microsoft-signed OS binaries.
+
+    Skips windows matching the LOLBin exclusion list — those stay flagged.
+    Converts suspicious windows to trusted with source='microsoft-signed'.
+    """
+    auto_trusted = 0
+    for wi in windows:
+        if not wi.suspicious or not wi.exe_path:
+            continue
+
+        # Check if this is a LOLBin (never auto-trust)
+        if wi.process_name.lower() in lolbins:
+            continue
+
+        # Check signature cache
+        norm_path = os.path.normcase(os.path.normpath(wi.exe_path))
+        sig_info = sig_cache.get(norm_path)
+        if not sig_info:
+            continue
+
+        if sig_info['valid'] and sig_info['is_os_binary']:
+            # Convert from suspicious to trusted
+            wi.trusted = True
+            wi.trust_source = 'microsoft-signed'
+            wi.trust_verified = 'microsoft'
+            wi.would_flag_reason = wi.suspicious_reason
+            wi.would_concern_score = wi.concern_score
+            wi.would_concern_level = wi.concern_level
+            wi.suspicious = False
+            wi.suspicious_reason = None
+            wi.concern_score = 0
+            wi.concern_level = 0
+            auto_trusted += 1
+
+    if auto_trusted:
+        logger.info(f"Auto-trusted {auto_trusted} Microsoft-signed window(s)")
+    return auto_trusted
 
 
 def _verify_exe_path(exe_path, expected_paths):
@@ -486,7 +572,7 @@ def _compute_centered_position(wi, area_x, area_y, area_w, area_h):
 
 
 def _simulate_window(wi, area_x, area_y, area_w, area_h,
-                     show_hidden, include_virtual):
+                     show_hidden, include_virtual, act_on_all=True):
     """Dry-run: determine what action would be taken and compute target position."""
 
     # Collapsed/tiny window annotation
@@ -494,23 +580,27 @@ def _simulate_window(wi, area_x, area_y, area_w, area_h,
     resize_note = '+resize' if is_tiny and wi.state != 'hidden' else ''
     use_topmost = wi.concern_level and wi.concern_level <= TOPMOST_THRESHOLD
     topmost_note = '+TOPMOST' if use_topmost else ''
+    fg_note = '+foreground' if wi.suspicious else ''
 
     if wi.state == 'minimized':
-        wi.action_taken = f'would:restore{resize_note}+center{topmost_note}'
+        wi.action_taken = f'would:restore{resize_note}+center{topmost_note}{fg_note}'
         wi.target_x, wi.target_y = _compute_centered_position(
             wi, area_x, area_y, area_w, area_h)
 
     elif wi.state == 'hidden' and show_hidden:
-        wi.action_taken = f'would:show{resize_note}+center{topmost_note}'
-        wi.target_x, wi.target_y = _compute_centered_position(
-            wi, area_x, area_y, area_w, area_h)
+        if act_on_all or wi.suspicious:
+            wi.action_taken = f'would:show{resize_note}+center{topmost_note}{fg_note}'
+            wi.target_x, wi.target_y = _compute_centered_position(
+                wi, area_x, area_y, area_w, area_h)
+        else:
+            wi.action_taken = 'skip:hidden-normal'
 
     elif wi.state == 'hidden' and not show_hidden:
         wi.action_taken = 'skip:hidden'
 
     elif wi.state == 'cloaked':
         if include_virtual or wi.suspicious:
-            wi.action_taken = f'would:pull-desktop{resize_note}+center{topmost_note}'
+            wi.action_taken = f'would:pull-desktop{resize_note}+center{topmost_note}{fg_note}'
             wi.target_x, wi.target_y = _compute_centered_position(
                 wi, area_x, area_y, area_w, area_h)
         else:
@@ -518,13 +608,14 @@ def _simulate_window(wi, area_x, area_y, area_w, area_h,
 
     else:
         # normal, maximized, off-screen -- would be centered
-        wi.action_taken = f'would:center{resize_note}{topmost_note}'
+        wi.action_taken = f'would:center{resize_note}{topmost_note}{fg_note}'
         wi.target_x, wi.target_y = _compute_centered_position(
             wi, area_x, area_y, area_w, area_h)
 
 
 def _process_window(platform, wi, area_x, area_y, area_w, area_h,
-                    show_hidden, include_virtual, topmost=False):
+                    show_hidden, include_virtual, topmost=False,
+                    act_on_all=True):
     """Restore, show, and center a single window.
 
     If topmost=True, the window is placed at HWND_TOPMOST z-order
@@ -540,10 +631,14 @@ def _process_window(platform, wi, area_x, area_y, area_w, area_h,
             return
 
     elif wi.state == 'hidden' and show_hidden:
-        if platform.show_window(wi):
-            action_parts.append('shown')
+        if act_on_all or wi.suspicious:
+            if platform.show_window(wi):
+                action_parts.append('shown')
+            else:
+                wi.action_taken = 'failed'
+                return
         else:
-            wi.action_taken = 'failed'
+            wi.action_taken = 'skipped:hidden-normal'
             return
 
     elif wi.state == 'hidden' and not show_hidden:
@@ -571,6 +666,14 @@ def _process_window(platform, wi, area_x, area_y, area_w, area_h,
             wi, area_x, area_y, area_w, area_h)
     else:
         action_parts.append('center-failed')
+
+    # All suspicious windows get brought to front so the user sees them.
+    # Processing order (normal → low_concern → high_concern) ensures
+    # highest concern windows end up topmost in the z-order.
+    # Levels 1-3 also get TOPMOST (sticky). Levels 4-5 get a one-time raise.
+    if wi.suspicious:
+        if platform.bring_to_front(wi):
+            action_parts.append('foreground')
 
     wi.action_taken = '+'.join(action_parts) if action_parts else 'unchanged'
 

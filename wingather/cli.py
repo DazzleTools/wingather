@@ -12,21 +12,25 @@ from wingather.core import gather_windows, undo_show_hidden
 def build_parser():
     parser = argparse.ArgumentParser(
         prog=__app_name__,
-        description="Bring all windows to foreground and center on screen.",
+        description="Find suspicious windows and bring them to your attention.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 examples:
-  %(prog)s --dry-run -v                    Simulate dryrun w/o moving anything /w verbose logging
-  %(prog)s -n --show-hidden                Dryrun and also reveal hidden windows
-  %(prog)s --list-only                     List all windows (no action)
+  %(prog)s --dry-run -v                    Preview suspicious windows (verbose)
+  %(prog)s --all --dry-run                 Preview ALL windows (original behavior)
+  %(prog)s -n --show-hidden                Dryrun + reveal suspicious hidden windows
+  %(prog)s --show-hidden --all             Reveal ALL hidden windows (use with caution)
+  %(prog)s --undo                          Re-hide windows from last --show-hidden
   %(prog)s --include-virtual               Pull windows from other desktops
   %(prog)s -tp xntimer.exe -tp "myapp*"    Trust multiple processes (skip flagging)
   %(prog)s --trust-file mytrust.txt        Trust from file (one per line)
   %(prog)s --no-default-trust --dry-run    Flag everything, ignore defaults
-  %(prog)s --undo                           Re-hide windows from last --show-hidden
   %(prog)s -xp notepad.exe --dry-run       Exclude a process entirely
   %(prog)s -f "*chrome*" --dry-run         Only affect Chrome windows
   %(prog)s --json --dry-run                Output as JSON
+
+common:
+  %(prog)s -n -iv -v --dry-run             Preview suspicious windows on all desktops (verbose)
 
 concern levels:
   [!1] ALERT    Highest concern (e.g., off-screen + dialog). Set TOPMOST.
@@ -56,15 +60,19 @@ Copyright (C) 2026 Dustin Darcy. Licensed under GPL-3.0.""",
         help='Simulate: show what would be moved and where, without moving anything'
     )
     parser.add_argument(
-        '--show-hidden', action='store_true',
+        '--all', '-a', dest='gather_all', action='store_true',
+        help='Act on all windows, not just suspicious ones (default: suspicious only)'
+    )
+    parser.add_argument(
+        '--show-hidden', '-sh', action='store_true',
         help='Also reveal hidden windows (use with caution; use --undo to reverse)'
     )
     parser.add_argument(
-        '--undo', action='store_true',
+        '--undo', '-u', action='store_true',
         help='Re-hide windows that were shown by a previous --show-hidden run'
     )
     parser.add_argument(
-        '--include-virtual', action='store_true',
+        '--include-virtual', "-iv", action='store_true',
         help='Pull windows from other virtual desktops to the current one'
     )
     parser.add_argument(
@@ -73,7 +81,7 @@ Copyright (C) 2026 Dustin Darcy. Licensed under GPL-3.0.""",
     )
     parser.add_argument(
         '--monitor', '-m', type=int, default=0,
-        help='Monitor index to center windows on (default: primary = 0)'
+        help='Display monitor index to center windows on (default: primary = 0)'
     )
     parser.add_argument(
         '--filter', '-f', type=str, default=None,
@@ -90,7 +98,7 @@ Copyright (C) 2026 Dustin Darcy. Licensed under GPL-3.0.""",
              'E.g.: -xp notepad.exe -xp calc.exe -xp "chrome*"'
     )
     parser.add_argument(
-        '--exclude-file', type=str, default=None, metavar='PATH',
+        '--exclude-file', '-xf', type=str, default=None, metavar='PATH',
         help='File containing process names to exclude, one per line'
     )
     parser.add_argument(
@@ -100,11 +108,11 @@ Copyright (C) 2026 Dustin Darcy. Licensed under GPL-3.0.""",
              'E.g.: -tp xntimer.exe -tp "myapp*"'
     )
     parser.add_argument(
-        '--trust-file', type=str, default=None, metavar='PATH',
+        '--trust-file', '-tf', type=str, default=None, metavar='PATH',
         help='File containing trusted process names, one per line'
     )
     parser.add_argument(
-        '--no-default-trust', action='store_true',
+        '--no-default-trust', '-ndt', action='store_true',
         help='Bypass the built-in default trust list (still honors -tp patterns)'
     )
     parser.add_argument(
@@ -134,6 +142,10 @@ def main(argv=None):
         else:
             print("\n  No undo state found. Run with --show-hidden first.")
         return
+
+    # Print banner when --show-hidden is active
+    if args.show_hidden:
+        _print_show_hidden_banner(args.gather_all)
 
     # Build process exclusion list
     exclude_processes = list(args.exclude_process)
@@ -173,6 +185,7 @@ def main(argv=None):
             exclude_processes=exclude_processes,
             trusted_processes=trusted_processes or None,
             no_default_trust=args.no_default_trust,
+            gather_all=args.gather_all,
         )
     except NotImplementedError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -188,6 +201,18 @@ def main(argv=None):
         _print_json(results, mode)
     else:
         _print_table(results, mode)
+
+
+def _print_show_hidden_banner(gather_all):
+    """Print educational banner when --show-hidden is used."""
+    print("\n  NOTE: Hidden windows are typically system internals (GDI+ surfaces,")
+    print("  DDE handlers, .NET event pumps) with no user interface. They are")
+    print("  hidden because they serve background functions. Use --undo to reverse.")
+    print("  See docs/hidden-windows.md for details.")
+    if not gather_all:
+        print("  Mode: suspicious hidden windows only. Use --all to reveal all.\n")
+    else:
+        print("  Mode: showing ALL hidden windows.\n")
 
 
 def _print_json(results, mode):

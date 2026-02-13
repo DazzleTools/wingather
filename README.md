@@ -30,15 +30,19 @@ pip install -e .
 ## Usage
 
 ```bash
-# Gather all windows to center of primary monitor
-wingather
+# Find and surface suspicious windows (default: only acts on flagged windows)
+wingather --dry-run
 
-# Dry run -- just list what's out there
+# Gather ALL windows to center of primary monitor
+wingather --all
+
+# List what's out there without taking action
 wingather --list-only
 
-# Also reveal hidden windows (use with caution; see docs/hidden-windows.md)
+# Reveal suspicious hidden windows (with educational banner)
 wingather --show-hidden
-wingather --undo              # re-hide them
+wingather --show-hidden --all   # reveal ALL hidden windows (use with caution)
+wingather --undo                # re-hide them (see docs/hidden-windows.md)
 
 # Center on a specific monitor (0=primary, 1=secondary, etc.)
 wingather --monitor 1
@@ -65,20 +69,20 @@ For best results, run as Administrator. Without elevation, windows belonging to 
 1. Sets DPI awareness for accurate multi-monitor coordinate handling
 2. Enumerates **all** top-level windows via Win32 `EnumWindows`
 3. Identifies window state: normal, minimized, hidden, off-screen, cloaked (virtual desktop)
-4. Restores minimized windows
-5. Optionally shows hidden windows
-6. Centers each window on the target monitor's work area
+4. Scores windows for suspicious indicators (off-screen, shrunk, dialog, cloaked)
+5. By default, only acts on suspicious windows (use `--all` for everything)
+6. Restores, shows, and centers affected windows on the target monitor
 7. Reports what was found and what action was taken
 
 ### Window States
 
 | State | Description | Default Action |
 |-------|-------------|----------------|
-| `normal` | Visible, on-screen | Center |
-| `minimized` | In taskbar | Restore + Center |
-| `maximized` | Full-screen normal | Center (un-maximizes) |
+| `normal` | Visible, on-screen | Skip (use `--all` to center) |
+| `minimized` | In taskbar | Restore + Center (if suspicious) |
+| `maximized` | Full-screen normal | Skip (use `--all` to center) |
 | `hidden` | `WS_VISIBLE` not set | Skip (use `--show-hidden`) |
-| `off-screen` | Beyond monitor bounds | Center |
+| `off-screen` | Beyond monitor bounds | Center (flagged suspicious) |
 | `cloaked` | On another virtual desktop | Skip (OS limitation) |
 
 ## Suspicious Window Detection

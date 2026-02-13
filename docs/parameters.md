@@ -1,5 +1,11 @@
 # wingather — CLI Parameters
 
+## Default Behavior
+
+By default, wingather only acts on **suspicious windows** — those with concern indicators like off-screen position, unusual size, or failed trust verification. Normal, non-suspicious windows are listed but not moved (`skip:normal`). This protects your desktop layout while surfacing potential threats.
+
+Use `--all` to act on all windows (the original "gather everything" behavior).
+
 ## Modes
 
 ### `--list-only`, `-l`
@@ -24,6 +30,19 @@ wingather --dry-run
 wingather -n -v          # with verbose logging
 ```
 
+### `--all`, `-a`
+
+Act on **all** windows, not just suspicious ones. This restores the original behavior where every window is restored, shown, and centered on the target monitor.
+
+Without `--all`, normal windows show `skip:normal` in the output. With `--all`, they are processed as usual.
+
+```bash
+wingather --all --dry-run    # preview what would happen to ALL windows
+wingather --all              # gather everything
+```
+
+Note: `--filter` implicitly overrides the suspicious-only restriction — if you explicitly target windows by pattern, they are acted on regardless of suspicion status.
+
 ### `--version`
 
 Print the version string and exit.
@@ -38,13 +57,15 @@ wingather --version
 
 Also reveal windows that have the `WS_VISIBLE` style flag unset. These are windows that have been explicitly hidden by the OS or applications for background communication, rendering, and system services.
 
-**Use with caution** — a typical desktop has 50-100+ hidden windows, and the vast majority are normal operating system internals (DDE servers, GDI+ surfaces, .NET event handlers, tray icon message pumps). Revealing them will clutter your desktop with non-interactive phantom windows. Use `--undo` to reverse.
+By default (without `--all`), only hidden windows with **concern indicators** are revealed — dialog classes, trust verification failures, etc. This filters out the vast majority of harmless system internals. Use `--show-hidden --all` to reveal all hidden windows for investigation.
 
-Always preview with `--dry-run` first:
+An educational banner is printed when `--show-hidden` is active, explaining what hidden windows are and how to reverse the operation.
 
 ```bash
-wingather --show-hidden --dry-run    # preview what would be revealed
-wingather --show-hidden              # reveal (state saved for --undo)
+wingather --show-hidden --dry-run        # preview suspicious hidden windows
+wingather --show-hidden --all --dry-run  # preview ALL hidden windows
+wingather --show-hidden                  # reveal suspicious hidden (state saved for --undo)
+wingather --show-hidden --all            # reveal ALL hidden (use with caution)
 ```
 
 See [hidden-windows.md](hidden-windows.md) for a detailed guide to what these windows are and when they deserve attention.

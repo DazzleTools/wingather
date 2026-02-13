@@ -21,6 +21,7 @@ class TestCLIParsing:
         assert args.trust == []
         assert args.trust_file is None
         assert not args.no_default_trust
+        assert not args.gather_all
         assert not args.verbose
 
     def test_dry_run_short(self):
@@ -90,6 +91,18 @@ class TestCLIParsing:
     def test_no_default_trust(self):
         args = build_parser().parse_args(['--no-default-trust'])
         assert args.no_default_trust
+
+    def test_all_flag(self):
+        args = build_parser().parse_args(['--all'])
+        assert args.gather_all
+
+    def test_all_flag_short(self):
+        args = build_parser().parse_args(['-a'])
+        assert args.gather_all
+
+    def test_defaults_gather_all_false(self):
+        args = build_parser().parse_args([])
+        assert not args.gather_all
 
     def test_combined_flags(self):
         args = build_parser().parse_args([

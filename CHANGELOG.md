@@ -4,6 +4,21 @@ All notable changes to wingather will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.2.1-alpha] - 2026-02-12
+
+### Changed
+- **Default mode**: wingather now only acts on suspicious windows by default. Normal, non-suspicious windows are skipped (`skip:normal`). Use `--all` / `-a` to restore the previous "gather everything" behavior.
+- `--show-hidden` now only reveals hidden windows with concern indicators (dialog class, trust failure) by default. Use `--show-hidden --all` to reveal all hidden windows.
+- `--filter` overrides the suspicious-only restriction — explicitly targeted windows are always acted on.
+
+### Added
+- `--all` / `-a` flag to opt-in to gathering all windows (previous default behavior)
+- Educational banner when `--show-hidden` is used, explaining what hidden windows are and referencing `docs/hidden-windows.md`
+- Auto-trust for Microsoft-signed OS binaries: suspicious windows with valid Authenticode signatures are automatically trusted (no manual whitelist entry needed)
+- LOLBin exclusion list (`lolbins.json`): ~44 Microsoft-signed binaries known as attack vectors (cmd, powershell, mshta, rundll32, etc.) are excluded from auto-trust. Source: [LOLBAS Project](https://lolbas-project.github.io/)
+- `wmplayer.exe` added to default trust list with signature verification (compact mini-mode triggers false positive on `shrunk` indicator)
+- All suspicious windows are now brought to foreground (`bring_to_front`) regardless of concern level. Levels 1-3 still get TOPMOST (sticky). Levels 4-5 get a one-time z-order raise so the user actually sees them.
+
 ## [0.2.0-alpha] - 2026-02-12
 
 ### Added
